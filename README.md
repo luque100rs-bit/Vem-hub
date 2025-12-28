@@ -1,86 +1,94 @@
--
-]]
-local s_rs = game:GetService("RunService")
-local l_plr = game:GetService("Players").LocalPlayer
+-- SERVIÇOS
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
 
+-- VARIÁVEIS DO SPEED
+local speedConn
+local baseSpeed = 27
+local active = false
 
-
-local l_humrp = l_plr.Character and l_plr.Character:FindFirstChild("HumanoidRootPart")
-local l_hum = l_plr.Character and l_plr.Character:FindFirstChild("Humanoid")
-
-local resp_con = l_plr.CharacterAdded:Connect(function(c) 
-    l_humrp = c:WaitForChild("HumanoidRootPart",3)
-    l_hum = c:WaitForChild("Humanoid",3)
-end)
-
-local function dnec(signal) 
-    local s = {}
-    for _, con in ipairs(getconnections(signal)) do 
-        local func = con.Function
-        if (func and islclosure(func)) then
-            if (not is_synapse_function(func)) then 
-                s[#s+1] = con
-                con:Disable() 
-            end
-        end
-    end
-    return s
+-- FUNÇÕES DE PERSONAGEM
+local function GetCharacter()
+	local Char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+	local HRP = Char:WaitForChild("HumanoidRootPart")
+	local Hum = Char:FindFirstChildOfClass("Humanoid")
+	return Char, HRP, Hum
 end
 
+local function getMovementInput()
+	local Char, HRP, Hum = GetCharacter()
+	if not Char or not HRP or not Hum then
+		return Vector3.new(0,0,0)
+	end
 
-local speed_amnt = 5
+	local moveVector = Hum.MoveDirection
+	if moveVector.Magnitude > 0.1 then
+		return Vector3.new(moveVector.X, 0, moveVector.Z).Unit
+	end
 
-local ui = loadstring(game:HttpGet('https://raw.githubusercontent.com/topitbopit/rblx/main/ui-stuff/jeff_2.lua'))()
-ui:SetColors('streamline')
-
-
-
-local w = ui:NewWindow('speed',250,200)
-
-local m = w:NewMenu('speed')
-local t = m:NewToggle('toggle speed')
-local s = m:NewSlider('speed amount',1,50,5)
-
-t:SetTooltip("toggles speedhacks")
-s:SetTooltip("speedhack speed")
-
-m:NewLabel()
-m:NewLabel('made by topit')
-
-s.OnValueChanged:Connect(function(v) 
-    speed_amnt = v
-end)
-
-do
-    local a,b
-    t.OnToggle:Connect(function(t)
-        if (t) then
-            a = dnec(l_humrp.Changed)
-            b = dnec(l_humrp:GetPropertyChangedSignal("CFrame"))
-            
-            s_rs:BindToRenderStep("speed",2000,function(dt)
-                l_humrp.CFrame += l_hum.MoveDirection*dt*5*speed_amnt
-            end)
-        else
-            s_rs:UnbindFromRenderStep("speed")
-            
-            for i,v in ipairs(a) do 
-                v:Enable()
-            end
-            for i,v in ipairs(b) do 
-                v:Enable()
-            end
-        end
-    end)
+	return Vector3.new(0,0,0)
 end
 
-ui.Exiting:Connect(function() 
-    for i,v in ipairs(ui:GetAllToggles()) do 
-        if (v:IsEnabled()) then
-            v:Disable()
-        end
-    end
-    resp_con:Disconnect()
-end)
+local function startSpeedControl()
+	if speedConn then return end
 
-ui:Ready()
+	speedConn = RunService.Heartbeat:Connect(function()
+		local Char, HRP, Hum = GetCharacter()
+		if not Char or not HRP or not Hum then return end
+
+		local inputDirection = getMovementInput()
+		if inputDirection.Magnitude > 0 then
+			HRP.AssemblyLinearVelocity = Vector3.new(
+				inputDirection.X * baseSpeed,
+				HRP.AssemblyLinearVelocity.Y,
+				inputDirection.Z * baseSpeed
+			)
+		else
+			HRP.AssemblyLinearVelocity = Vector3.new(
+				0,
+				HRP.AssemblyLinearVelocity.Y,
+				0
+			)
+		end
+	end)
+end
+
+local function stopSpeedControl()
+	if speedConn then
+		speedConn:Disconnect()
+		speedConn = nil
+	end
+
+	local _, HRP = GetCharacter()
+	if HRP then
+		HRP.AssemblyLinearVelocity = Vector3.new(0, HRP.AssemblyLinearVelocity.Y, 0)
+	end
+end
+
+-- ================= GUI =================
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "GuiSimples"
+gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+local speedButton = Instance.new("ImageButton")
+speedButton.Name = "Icone"
+speedButton.Parent = gui
+speedButton.Size = UDim2.new(0, 80, 0, 80)
+speedButton.Position = UDim2.new(0, 20, 0, 20)
+speedButton.BackgroundTransparency = 1
+
+-- ÍCONE
+speedButton.Image = "rbxassetid://7734053495"
+
+-- CLIQUE NO ÍCONE
+speedButton.MouseButton1Click:Connect(function()
+	active = not active
+
+	if active then
+		startSpeedControl()
+	else
+		stopSpeedControl()
+	end
+end)
